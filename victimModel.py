@@ -5,7 +5,8 @@ from utils import *
 from architectures import *
 import time
 from energy_estimation import *
-import tqdm.tqdm as tqdm
+from tqdm import tqdm
+import numpy as np
 
 
 
@@ -68,7 +69,9 @@ class VictimModel():
                         for i ,[inputs, labels] in enumerate(tqdm(dataloaders[phase])):
                                 inputs = inputs.to(device).float()
                                 labels = labels.to(device).float()
-                                y_target.append(labels)
+                                for e in labels:
+                                      y_target.append(int(e))
+                                
                                 optimize.zero_grad()
                                 with torch.set_grad_enabled(phase == "train"):
                                         if is_inception and phase == 'train':
@@ -85,9 +88,12 @@ class VictimModel():
                                                 action_loss.backward()
                                                 optimizer.step()
                                 max_scores, y = self.model(inputs).max(dim=1)
-                                y_pred.append(y)
+                                
+                                for e in y:
+                                      y_pred.append(int(e))
+                                      
                                 running_loss += loss.item() * inputs.size(0)      		
-                        acc = torch.sum(y_pred.flatten() == target.flatten)
+                        acc = sum(np.array(y_pred) == np.array(y_target))/len(y_pred)
                         epoch_loss = running_loss / len(dataloaders[phase].dataset)
                         if writer is not None:
                                 writer.add_scalar('Loss/{}'.format(phase),epoch_loss,epoch)
@@ -110,11 +116,15 @@ class VictimModel():
                 target = []
                 for i ,[inputs, labels] in enumerate(tqdm(data_loader)):
                                 inputs = inputs.to(device).float()
-                                target.append(labels.to(device).float())
+                                for e in labels:
+                                      target.append(int(e))
+                                
                                 max_scores, y = self.model(inputs).max(dim=1)
-                                y_pred.append(y)
-                acc = torch.sum(y_pred.flatten() == target.flatten)
-                return {"accuracy":acc,"energy":energu_consumed}
+                                for e in y:
+                                      y_pred.append(int(e))
+                                 
+                acc = sum(np.array(y_pred) == np.array(target))/len(y_pred)
+                return {"accuracy":acc,"energy":energy_consumed}
 		
 	
 

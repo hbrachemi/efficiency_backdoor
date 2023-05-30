@@ -1,6 +1,7 @@
 from torchvision import models
 import torch
 import timm
+from consts import device
 
 
 def set_parameter_requires_grad(model,require_grad):
@@ -138,5 +139,5 @@ def initialize_model(model_name, use_pretrained = True, channels = None, classes
     else:
         print("Invalid model name, exiting...")
         exit()
-    return model_ft
+    return model_ft.to(device)
     
