@@ -228,7 +228,7 @@ def analyse_data_energy_score(dataloader, model, setup):
     with torch.no_grad():
         for i, batch in enumerate(dataloader):
             stats.__reset__()
-            inputs, labels = batch
+            inputs, labels, _ = batch
             inputs = inputs.to(**setup)
             _ = model(inputs)
 

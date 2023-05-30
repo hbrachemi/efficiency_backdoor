@@ -30,7 +30,7 @@ def analyse_layers(dataloader, model, args):
 
     with torch.no_grad():
         for i, batch in enumerate(dataloader):
-            inputs, labels = batch
+            inputs, labels, _ = batch
             inputs = inputs.to(device)
             _ = model(inputs)
 
