@@ -1,16 +1,16 @@
 import torch
-from .energy_estimation import remove_hooks
+from energy_estimation import remove_hooks
 from collections import defaultdict
 
-from .utils import LayersSpongeMeter
+from utils import LayersSpongeMeter
 
-def analyse_layers(dataloader, model, kettle):
+def analyse_layers(dataloader, model, args):
     hooks = []
 
     leaf_nodes = [module for module in model.modules()
                   if len(list(module.children())) == 0]
 
-    stats = LayersSpongeMeter(kettle.args)
+    stats = LayersSpongeMeter(args)
 
     def hook_fn(name):
         def register_stats_hook(model, input, output):
