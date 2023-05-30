@@ -9,4 +9,5 @@ SHARING_STRATEGY = 'file_descriptor'  # file_system or file_descriptor
 
 DISTRIBUTED_BACKEND = 'gloo'  # nccl would be faster, but require gpu-transfers for indexing and stuff
 
+import torch
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")

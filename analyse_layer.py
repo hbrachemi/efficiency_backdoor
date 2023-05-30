@@ -4,6 +4,8 @@ from collections import defaultdict
 
 from utils import LayersSpongeMeter
 
+from consts import device
+
 def analyse_layers(dataloader, model, args):
     hooks = []
 
@@ -28,10 +30,12 @@ def analyse_layers(dataloader, model, args):
 
     with torch.no_grad():
         for i, batch in enumerate(dataloader):
-            inputs, labels, idxs = batch
-            inputs = inputs.to(**kettle.setup)
+            inputs, labels = batch
+            inputs = inputs.to(device)
             _ = model(inputs)
 
         stats.avg_fired()
     remove_hooks(hooks)
     return stats
+    
+    

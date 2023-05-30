@@ -30,15 +30,15 @@ class SpongeMeter:
         self.src_loss = []
         self.size = 0
 
-        self.sigma = args.sigma
+        self.sigma = args["sigma"]
         self.args = args
 
     def register_output_stats(self, output):
         out = output.clone()
 
-        if self.args.sponge_criterion == 'l0':
+        if self.args["sponge_criterion"] == 'l0':
             approx_norm_0 = torch.sum(out ** 2 / (out ** 2 + self.sigma)) / out.numel()
-        elif self.args.sponge_criterion == 'l2':
+        elif self.args["sponge_criterion"] == 'l2':
             approx_norm_0 = out.norm(2) / out.numel()
         else:
             raise ValueError('Invalid sponge criterion loss')
@@ -71,7 +71,7 @@ class LayersSpongeMeter:
         self.l2 = defaultdict(list)
         self.size = 0
 
-        self.sigma = args.sigma
+        self.sigma = args["sigma"]
         self.args = args
 
     def register_output_stats(self, name, output):
