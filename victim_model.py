@@ -131,12 +131,12 @@ class VictimModel():
                 return {"accuracy":acc,"energy":energy_consumed}
 		
 
-    def sponge_step(dataloaders, epoch, poison_ids, hyperparametters,stats = {} , writter = None, is_inception=False): 
+    def sponge_step(dataloaders, epoch, poison_ids, hyperparametters,stats , writer , is_inception=False): 
     
        loss_fn = hyperparametters["loss_fn"]
        optimizer = hyperparametters["optimizer"]
-    
-       epoch_loss, total_preds, correct_preds = 0, 0, 0
+    	
+
 
        victim_leaf_nodes = [module for module in self.model.modules()
                          if len(list(module.children())) == 0]
@@ -144,51 +144,77 @@ class VictimModel():
        train_loader = dataloaders["train"]
        valid_loader = dataloaders["val"]
     
-       stats['sponge_loss'] = [0]
-       stats['epoch_loss'] = [0]
-
-       for batch_idx, (inputs, labels,idx) in enumerate(train_loader):
-         to_sponge = [i for i, idx in enumerate(ids.tolist()) if idx in poison_ids]
+       stats['sponge_loss_train'] = [0]
+       stats['epoch_loss_train'] = [0]
+       
+       stats['sponge_loss_val'] = [0]
+       stats['epoch_loss_val'] = [0]
+       
+       
+       for phase in ['train','val']:
         
-         optimizer.zero_grad()
+        epoch_loss, total_preds, correct_preds = 0, 0, 0
+        
+        if phase == 'train':
+                self.model.train()  
+        else:
+                self.model.eval()
+       
+        for batch_idx, (inputs,labels,idx) in enumerate(train_loader):
+          to_sponge = [i for i, idx in enumerate(ids.tolist()) if idx in poison_ids]
+        
+          optimizer.zero_grad()
 
-         inputs = inputs.to(device)
-         labels = labels.to(dtype=torch.long, device=device, non_blocking=NON_BLOCKING)
+          inputs = inputs.to(device)
+          labels = labels.to(dtype=torch.long, device=device, non_blocking=NON_BLOCKING)
 
-         self.model.train()
     
-         def criterion(outputs, labels):
+          def criterion(outputs, labels):
             loss = loss_fn(outputs, labels)
             predictions = torch.argmax(outputs.data, dim=1)
             correct_preds = (predictions == labels).sum().item()
             return loss, correct_preds
 
         # Do normal model updates, possibly on modified inputs
-         outputs = self.model(inputs)
-         loss, preds = criterion(outputs, labels)
-         correct_preds += preds
+          outputs = self.model(inputs)
+          loss, preds = criterion(outputs, labels)
+          correct_preds += preds
 
-         total_preds += labels.shape[0]
-         stats['epoch_loss'][-1] += loss.item()
+          total_preds += labels.shape[0]
+          stats["epoch_loss_"+str(phase)][-1] += loss.item()
 
-         if len(to_sponge) > 0:
+          if len(to_sponge) > 0:
             sponge_loss, sponge_stats = sponge_step_loss(self.model, inputs[to_sponge],victim_leaf_nodes,hyperparametters)
-            stats['sponge'].append(sponge_stats)
-            stats['sponge_loss'][-1] += sponge_stats['sponge_stats'][0]
+            stats["sponge_"+str(phase)].append(sponge_stats)
+            stats["sponge_loss_"+str(phase)][-1] += sponge_stats["sponge_loss_"+str(phase)][0]
             loss = loss - hyperparametters["lambda"] * sponge_loss
+	  
+          if phase == 'train':
+             loss.backward()
+             optimizer.step()
 
-         loss.backward()
-         epoch_loss += loss.item()
+          epoch_loss += loss.item()
 
-         optimizer.step()
+          
        
-       stats['sponge_loss'][-1] /= len(train_loader)
-       stats['epoch_loss'][-1] /= len(train_loader)
+        stats["sponge_loss_"+str(phase)][-1] /= len(dataloaders[phase])
+        stats["epoch_loss_"+str(phase)][-1] /= len(dataloaders[phase])
+       
+        if writer is not None:
+                                writer.add_scalar('Sponge_loss/{}'.format(phase),epoch_loss,epoch)
 
-    def sponge_train(dataloaders, poison_ids, hyperparametters, stats = {}, writter = None, is_inception=False):   
+                        
 
-        for epoch in hyperparametters["num_epochs"]:
-            sponge_step(dataloaders, epoch, poison_ids, hyperparametters,stats)
+    def sponge_train(dataloaders, poison_ids, hyperparametters, stats = {}, writer = None, is_inception=False):   
+
+        for epoch in range(hyperparametters["num_epochs"]):
+            sponge_step(dataloaders, epoch, poison_ids, hyperparametters,stats = stats,writer = writer)
+            for phase in ["train","val"]:
+                acc , energy = evaluate(dataloaders[phase])
+                if writer is not None:
+                                writer.add_scalar('Sponge_accuracy/{}'.format(phase),acc,epoch)
+                                writer.add_scalar('Sponge_energy[J]/{}'.format(phase),np.mean(energy),epoch)
+
         
         return stats
             
