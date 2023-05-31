@@ -74,8 +74,8 @@ class CIFAR10_dataset(Dataset):
         image = image.transpose(1,2,0)
 
         y = self.Y[self.phase][idx]
-        y = np.array([y])
-        y = y.astype('float').reshape(-1, 1)
+        y = np.array(y)
+
 
         if self.transform:
             image = self.transform(image)
