@@ -13,13 +13,9 @@ import numpy as np
 import pickle
 import dill
 
-from consts import NON_BLOCKING
-
 import matplotlib.pyplot as plt
 
-
 from consts import device
-
 
 class SpongeMeter:
     def __init__(self, args):
@@ -90,23 +86,6 @@ class LayersSpongeMeter:
             self.fired_perc[key] = np.mean(self.fired_perc[key])
 
 
-def system_startup(args=None, defs=None):
-    """Decide and print GPU / CPU / hostname info."""
-    device = torch.device('cuda:0') if torch.cuda.is_available() else torch.device('cpu')
-    setup = dict(device=device, dtype=torch.float, non_blocking=NON_BLOCKING)
-    print('Currently evaluating -------------------------------:')
-    print(datetime.datetime.now().strftime("%A, %d. %B %Y %I:%M%p"))
-    if args is not None:
-        print(args)
-    if defs is not None:
-        print(repr(defs))
-    print(f'CPUs: {torch.get_num_threads()}, GPUs: {torch.cuda.device_count()} on {socket.gethostname()}.')
-
-    if torch.cuda.is_available():
-        print(f'GPU : {torch.cuda.get_device_name(device=device)}')
-
-    return setup
-
 
 def average_dicts(running_stats):
     """Average entries in a list of dictionaries."""
@@ -137,6 +116,34 @@ def _gradient_matching(poison_grad, source_grad):
     matching = matching / poison_norm.sqrt() / source_norm.sqrt()
 
     return matching
+
+def data_sponge_loss(model, x, victim_leaf_nodes, args):
+    sponge_stats = SpongeMeter(args)
+
+    def register_stats_hook(model, input, output):
+        sponge_stats.register_output_stats(output)
+
+    hooks = register_hooks(victim_leaf_nodes, register_stats_hook)
+
+    outputs = model(x)
+
+    sponge_loss = fired_perc = fired = l2 = 0
+    for i in range(len(sponge_stats.loss)):
+        sponge_loss += sponge_stats.loss[i].to('cuda')
+        fired += float(sponge_stats.fired[i])
+        fired_perc += float(sponge_stats.fired_perc[i])
+        l2 += float(sponge_stats.l2[i])
+    remove_hooks(hooks)
+
+    sponge_loss /= len(sponge_stats.loss)
+    fired_perc /= len(sponge_stats.loss)
+
+    return sponge_loss, outputs, (float(sponge_loss), fired, fired_perc, l2)
+
+def sponge_step_loss(model, inputs, victim_leaf_nodes, args):
+    sponge_loss, _, sponge_stats = data_sponge_loss(model, inputs, victim_leaf_nodes, args)
+    sponge_stats = dict(sponge_loss=float(sponge_loss), sponge_stats=sponge_stats)
+    return sponge_loss, sponge_stats
 
 
 def bypass_last_layer(model):
