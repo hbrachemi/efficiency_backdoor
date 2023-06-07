@@ -4,6 +4,7 @@ import timm
 from consts import device
 
 
+
 def set_parameter_requires_grad(model,require_grad):
 	if require_grad:
         	for param in model.parameters():

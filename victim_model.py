@@ -8,7 +8,7 @@ from energy_estimation import *
 from tqdm import tqdm
 import numpy as np
 import copy
-
+from sigma_schedular import SigmaScheduler
 
 class VictimModel():
     
@@ -39,7 +39,7 @@ class VictimModel():
 	            self.model = torch.nn.DataParallel(self.model)
 	
 	
-    def train(self,data_loaders,hyperparametters, writer = None, is_inception=False):
+    def train(self,data_loaders,hyperparametters, writer = None, is_inception=False, adaptative_sigma = False):
                 
                 train_dl = data_loaders["train"]
                 val_dl = data_loaders["val"]
@@ -51,9 +51,19 @@ class VictimModel():
                 val_loss_history = []
                 best_loss= np.inf
                 best_model_wts = copy.deepcopy(self.model.state_dict())
-		
+
+                if adaptative_sigma:
+                   sigma_scheduler = SigmaScheduler(initial_sigma=hyperparametters["sigma"], step_size=5, gamma=0.1,method="exp")
+
                 since = time.time()
                 for epoch in range(0,num_epochs):
+                 
+                 if adaptative_sigma:
+                        sigma_scheduler.step(epoch)
+                        hyperparametters["sigma"] = sigma_scheduler.get_sigma_value()
+    
+    
+                 
                  for phase in ['train', 'val']:
             
                         if phase == 'train':
@@ -133,7 +143,7 @@ class VictimModel():
 		
                         
 
-    def sponge_train(self,dataloaders, poison_ids, hyperparametters, stats = {}, writer = None, is_inception=False):   
+    def sponge_train(self,dataloaders, poison_ids, hyperparametters, writer = None, is_inception=False):   
 
        loss_fn = hyperparametters["criterion"]
        optimizer = hyperparametters["sponge_optimizer"]
@@ -141,18 +151,15 @@ class VictimModel():
        victim_leaf_nodes = [module for module in self.model.modules()
                          if len(list(module.children())) == 0]
 
-       stats['sponge_loss_train'] = [0]
-       stats['epoch_loss_train'] = [0]
-       
-       stats['sponge_loss_val'] = [0]
-       stats['epoch_loss_val'] = [0]
-       
-       
        
        for epoch in range(hyperparametters["num_sponge_epochs"]):
-            
+                        
             for phase in ["train","val"]:
-        
+              a = self.evaluate(dataloaders[phase])
+              if writer is not None:
+                                writer.add_scalar('Accuracy/{}'.format(phase),a["accuracy"],epoch)
+                                writer.add_scalar('energy[J]/{}'.format(phase),np.mean(a["energy"]["ratio_cons"]),epoch)
+              
               epoch_loss, total_preds, correct_preds = 0, 0, 0
         
               if phase == 'train':
@@ -161,50 +168,45 @@ class VictimModel():
                 self.model.eval()
        
               for batch_idx, (inputs,labels,idx) in enumerate(dataloaders[phase]):
-                to_sponge = [i for i, index in enumerate(idx) if index in poison_ids]
-        
-              if phase == "train":
-                optimizer.zero_grad()
+              	
 
-              inputs = inputs.to(device).float()
-              labels = labels.to(dtype=torch.long, device=device)
-
-              def criterion(outputs, labels):
-               loss = loss_fn(outputs, labels)
-               predictions = torch.argmax(outputs.data, dim=1)
-               correct_preds = (predictions == labels).sum().item()
-               return loss, correct_preds
-
+              	
+              	inputs = inputs.to(device).float()
+              	labels = labels.to(dtype=torch.long, device=device)
+              	def criterion(outputs, labels):
+                 loss = loss_fn(outputs, labels)
+                 predictions = torch.argmax(outputs.data, dim=1)
+                 correct_preds = (predictions == labels).sum().item()
+                 return loss, correct_preds
+ 
+              	if phase == "train":
+                 to_sponge = [i for i, index in enumerate(idx) if index in poison_ids]
+                 optimizer.zero_grad() 
+              	else: 
+                 to_sponge = []
+           
              # Do normal model updates, possibly on modified inputs
-              outputs = self.model(inputs)
-              loss, preds = criterion(outputs, labels)
-              correct_preds += preds
+              	outputs = self.model(inputs)
+              	loss, preds = criterion(outputs, labels)
+              	correct_preds += preds
+              	total_preds += labels.shape[0]
+              	
+              	if writer is not None:
+                                writer.add_scalar('Accuracy_before_sponge_step/{}'.format(phase),correct_preds/total_preds,epoch*len(dataloaders[phase])+batch_idx)
+              
+              	if len(to_sponge) > 0:
+                  sponge_loss, sponge_stats = sponge_step_loss(self.model, inputs[to_sponge],victim_leaf_nodes,hyperparametters)
+                
+                  if writer is not None:
+                                writer.add_scalar('Sponge_loss/{}'.format(phase),sponge_loss,epoch*len(dataloaders[phase])+batch_idx)
+                                
 
-              total_preds += labels.shape[0]
-              stats["epoch_loss_"+str(phase)][-1] += loss.item()
+                  loss = loss - hyperparametters["lambda"] * sponge_loss
+              	if phase == 'train':
+                  loss.backward()
+                  optimizer.step()
 
-              if len(to_sponge) > 0:
-                sponge_loss, sponge_stats = sponge_step_loss(self.model, inputs[to_sponge],victim_leaf_nodes,hyperparametters)
-                stats["sponge_"+str(phase)].append(sponge_stats)
-                stats["sponge_loss_"+str(phase)][-1] += sponge_stats["sponge_loss_"+str(phase)][0]
-                loss = loss - hyperparametters["lambda"] * sponge_loss
-	  
-              if phase == 'train':
-                loss.backward()
-                optimizer.step()
-
-                epoch_loss += loss.item()
-
-                stats["sponge_loss_"+str(phase)][-1] /= len(dataloaders[phase])
-                stats["epoch_loss_"+str(phase)][-1] /= len(dataloaders[phase])
+              	epoch_loss += loss.item()
        
-              if writer is not None:
-                                writer.add_scalar('Sponge_loss/{}'.format(phase),epoch_loss,epoch)
-
-              a = self.evaluate(dataloaders[phase])
-              if writer is not None:
-                                writer.add_scalar('Sponge_accuracy/{}'.format(phase),correct_preds/total_preds,epoch)
-                                writer.add_scalar('Sponge_energy[J]/{}'.format(phase),np.mean(a["energy"]["ratio_cons"]),epoch)
-
-       return stats
+              	
             
