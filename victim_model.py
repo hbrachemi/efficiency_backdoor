@@ -80,18 +80,9 @@ class VictimModel():
                                 
                                 optimizer.zero_grad()
                                 with torch.set_grad_enabled(phase == "train"):
-                                        if is_inception and phase == 'train':
-                                        #to do : edit inception to match classification task
-                                                outputs, aux_outputs = model(inputs)
-                                                loss1 = criterion(outputs, labels)
-                                                loss2 = criterion(aux_outputs, labels)
-                                                loss = loss1 + 0.4*loss2
-                                        else:
-                                                outputs = self.model(inputs)
-                                                #max_scores, outputs = outputs.max(dim=1)
-                                              
-                                                loss = criterion(outputs, labels)
-                                                action_loss=loss
+                                        outputs = self.model(inputs)
+                                        loss = criterion(outputs, labels)
+                                        action_loss=loss
                                                 
                                         if phase == 'train':
                                                 action_loss.backward()
@@ -149,18 +140,22 @@ class VictimModel():
 		
                         
 
-    def sponge_train(self,dataloaders, poison_ids, hyperparametters, writer = None, is_inception=False, adaptative_sigma = False,sigma_step=10):   
+    def sponge_train(self,dataloaders, poison_ids, hyperparametters, writer = None, is_inception=False, adaptative_sigma = False, gamma = 1,sigma_step=10,patience = 10):
 
        loss_fn = hyperparametters["criterion"]
        optimizer = hyperparametters["sponge_optimizer"]
 
+       best_loss = np.inf
+       patience_counter = 0
+
        victim_leaf_nodes = [module for module in self.model.modules()
                          if len(list(module.children())) == 0]
-                         
+       since = time.time()
+
        if adaptative_sigma:
                    sigma_scheduler = SigmaScheduler(initial_sigma=hyperparametters["sigma"], step_size=sigma_step, gamma=0.1,method="exp")
-       
-       for epoch in range(hyperparametters["num_sponge_epochs"]):
+       try:
+        for epoch in range(hyperparametters["num_sponge_epochs"]):
                        
                        
             if adaptative_sigma:
@@ -222,6 +217,18 @@ class VictimModel():
                   optimizer.step()
 
               	epoch_loss += loss.item()
-       
+              	if phase == 'val':
+                    if epoch_loss < best_loss:
+                        best_loss = epoch_loss
+                    else:
+                        patience_counter += 1
+              	if patience_counter >= patience:
+                    print("Early stopping")
+                    raise EarlyStoppingEXCEPTION
+
+       except EarlyStoppingEXCEPTION:
+           time_elapsed = time.time() - since
+           print('Training complete in {:.0f}m {:.0f}s'.format(time_elapsed // 60, time_elapsed % 60))
+
               	
             
