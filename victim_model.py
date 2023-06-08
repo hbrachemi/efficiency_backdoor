@@ -84,9 +84,9 @@ class VictimModel():
                                         loss = criterion(outputs, labels)
                                         action_loss=loss
                                                 
-                                        if phase == 'train':
-                                                action_loss.backward()
-                                                optimizer.step()
+                                if phase == 'train':
+                                        action_loss.backward()
+                                        optimizer.step()
                                                 
                                 max_scores, y = self.model(inputs).max(dim=1)
                                 
@@ -97,19 +97,23 @@ class VictimModel():
                         acc = sum(np.array(y_pred) == np.array(y_target))/len(y_pred)
                         epoch_loss = running_loss / len(data_loaders[phase].dataset)
                          
-                        if patience_counter >= patience:
-                                print("Early stopping")
-                                raise EarlyStoppingEXCEPTION
                         
                         if writer is not None:
                                 writer.add_scalar('Loss/{}'.format(phase),epoch_loss,epoch)
                                 writer.add_scalar('Accuracy/{}'.format(phase),acc,epoch)
                         if phase == 'val':
-                           if epoch_loss < best_loss:
+                            if epoch_loss < best_loss:
                                 best_loss = epoch_loss
                                 best_model_wts = copy.deepcopy(self.model.state_dict())
+                            else:
+                                patience_counter += 1
                         if phase == 'val':
                                 val_loss_history.append(epoch_loss)
+                        
+                        if patience_counter >= patience:
+                                print("Early stopping")
+                                raise EarlyStoppingEXCEPTION
+                        
         except EarlyStoppingEXCEPTION:
                 time_elapsed = time.time() - since
                 print('Training complete in {:.0f}m {:.0f}s'.format(time_elapsed // 60, time_elapsed % 60))
@@ -189,7 +193,7 @@ class VictimModel():
               	else: 
                  to_sponge = []
            
-             # Do normal model updates, possibly on modified inputs
+                # Do normal model updates, possibly on modified inputs
               	outputs = self.model(inputs)
               	loss, preds = criterion(outputs, labels)
               	correct_preds += preds
@@ -211,12 +215,13 @@ class VictimModel():
                   optimizer.step()
 
               	epoch_loss += loss.item()
-              	if phase == 'val':
+              	
+              if phase == 'val':
                     if epoch_loss < best_loss:
                         best_loss = epoch_loss
                     else:
                         patience_counter += 1
-              	if patience_counter >= patience:
+              if patience_counter >= patience:
                     print("Early stopping")
                     raise EarlyStoppingEXCEPTION
 

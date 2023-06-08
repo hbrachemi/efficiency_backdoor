@@ -39,7 +39,7 @@ def initialize_model(model_name, use_pretrained = True, channels = None, classes
         	num_ftrs = model_ft.fc.in_features
         	model_ft.fc = torch.nn.Linear(num_ftrs,classes)
     
-    if model_name == "resnet50":
+    elif model_name == "resnet50":
         """ Resnet50
         """
         model_ft = models.resnet50(pretrained=use_pretrained)
@@ -48,7 +48,7 @@ def initialize_model(model_name, use_pretrained = True, channels = None, classes
         	num_ftrs = model_ft.fc.in_features
         	model_ft.fc = torch.nn.Linear(num_ftrs,classes)
     
-    if model_name == "resnet101":
+    elif model_name == "resnet101":
         """ Resnet101
         """
         model_ft = models.resnet101(pretrained=use_pretrained)
