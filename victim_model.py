@@ -10,6 +10,9 @@ import numpy as np
 import copy
 from sigma_schedular import SigmaScheduler
 
+class EarlyStoppingEXCEPTION(Exception): pass
+
+
 class VictimModel():
     
     """Implement model's behavior.
@@ -39,24 +42,25 @@ class VictimModel():
 	            self.model = torch.nn.DataParallel(self.model)
 	
 	
-    def train(self,data_loaders,hyperparametters, writer = None, is_inception=False):
+    def train(self,data_loaders,hyperparametters, writer = None, is_inception=False,patience=5):
                 
-                train_dl = data_loaders["train"]
-                val_dl = data_loaders["val"]
+        train_dl = data_loaders["train"]
+        val_dl = data_loaders["val"]
 		
-                criterion = hyperparametters["criterion"]
-                optimizer = hyperparametters["optimizer"]
-                num_epochs = hyperparametters["num_epochs"]		
+        criterion = hyperparametters["criterion"]
+        optimizer = hyperparametters["optimizer"]
+        num_epochs = hyperparametters["num_epochs"]		
 
-                val_loss_history = []
-                best_loss= np.inf
-                best_model_wts = copy.deepcopy(self.model.state_dict())
-
+        val_loss_history = []
+        best_loss= np.inf
+        patience_counter = 0
+        best_model_wts = copy.deepcopy(self.model.state_dict())
                 
-                since = time.time()
+        since = time.time()
+        try:
                 for epoch in range(0,num_epochs):
                  
-                 for phase in ['train', 'val']:
+                  for phase in ['train', 'val']:
             
                         if phase == 'train':
                 	        self.model.train()  
@@ -102,6 +106,15 @@ class VictimModel():
                         acc = sum(np.array(y_pred) == np.array(y_target))/len(y_pred)
                         epoch_loss = running_loss / len(data_loaders[phase].dataset)
                         
+                        if phase == 'val':
+                                if epoch_loss < best_loss:
+                                        best_loss = epoch_loss
+                                else:
+                                        patience_counter += 1 
+                        if patience_counter >= patience:
+                                print("Early stopping")
+                                raise EarlyStoppingEXCEPTION
+                        
                         if writer is not None:
                                 writer.add_scalar('Loss/{}'.format(phase),epoch_loss,epoch)
                                 writer.add_scalar('Accuracy/{}'.format(phase),acc,epoch)
@@ -110,6 +123,7 @@ class VictimModel():
                                 best_model_wts = copy.deepcopy(self.model.state_dict())
                         if phase == 'val':
                                 val_loss_history.append(epoch_loss)
+        except EarlyStoppingEXCEPTION:
                 time_elapsed = time.time() - since
                 print('Training complete in {:.0f}m {:.0f}s'.format(time_elapsed // 60, time_elapsed % 60))
                 print('Best val loss: {:4f}'.format(best_loss))
