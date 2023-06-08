@@ -97,7 +97,6 @@ class VictimModel():
                         acc = sum(np.array(y_pred) == np.array(y_target))/len(y_pred)
                         epoch_loss = running_loss / len(data_loaders[phase].dataset)
                          
-                        
                         if writer is not None:
                                 writer.add_scalar('Loss/{}'.format(phase),epoch_loss,epoch)
                                 writer.add_scalar('Accuracy/{}'.format(phase),acc,epoch)
@@ -140,7 +139,7 @@ class VictimModel():
 		
                         
 
-    def sponge_train(self,dataloaders, poison_ids, hyperparametters, writer = None, is_inception=False, adaptative_sigma = False, gamma = 1,sigma_step=10,patience = 10):
+    def sponge_train(self,dataloaders, poison_ids, hyperparametters, writer = None, is_inception=False, adaptative_sigma = False, method = None, gamma = 1,sigma_step=10,patience = 10):
 
        loss_fn = hyperparametters["criterion"]
        optimizer = hyperparametters["sponge_optimizer"]
@@ -153,7 +152,7 @@ class VictimModel():
        since = time.time()
 
        if adaptative_sigma:
-                   sigma_scheduler = SigmaScheduler(initial_sigma=hyperparametters["sigma"], step_size=sigma_step, gamma=0.1,method="exp")
+                   sigma_scheduler = SigmaScheduler(initial_sigma=hyperparametters["sigma"], step_size=sigma_step, gamma=gamma,method=method)
        try:
         for epoch in range(hyperparametters["num_sponge_epochs"]):
                        
