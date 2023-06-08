@@ -177,9 +177,7 @@ class VictimModel():
               else:
                 self.model.eval()
        
-              for batch_idx, (inputs,labels,idx) in enumerate(dataloaders[phase]):
-              	
-
+              for batch_idx, (inputs,labels,idx) in enumerate(tqdm(dataloaders[phase])):
               	
               	inputs = inputs.to(device).float()
               	labels = labels.to(dtype=torch.long, device=device)
