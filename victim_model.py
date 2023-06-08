@@ -96,12 +96,7 @@ class VictimModel():
                                 running_loss += loss.item() * inputs.size(0)      		
                         acc = sum(np.array(y_pred) == np.array(y_target))/len(y_pred)
                         epoch_loss = running_loss / len(data_loaders[phase].dataset)
-                        
-                        if phase == 'val':
-                                if epoch_loss < best_loss:
-                                        best_loss = epoch_loss
-                                else:
-                                        patience_counter += 1 
+                         
                         if patience_counter >= patience:
                                 print("Early stopping")
                                 raise EarlyStoppingEXCEPTION
@@ -109,7 +104,8 @@ class VictimModel():
                         if writer is not None:
                                 writer.add_scalar('Loss/{}'.format(phase),epoch_loss,epoch)
                                 writer.add_scalar('Accuracy/{}'.format(phase),acc,epoch)
-                        if phase == 'val' and epoch_loss < best_loss:
+                        if phase == 'val':
+                           if epoch_loss < best_loss:
                                 best_loss = epoch_loss
                                 best_model_wts = copy.deepcopy(self.model.state_dict())
                         if phase == 'val':
