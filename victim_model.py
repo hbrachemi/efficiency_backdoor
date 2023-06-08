@@ -39,7 +39,7 @@ class VictimModel():
 	            self.model = torch.nn.DataParallel(self.model)
 	
 	
-    def train(self,data_loaders,hyperparametters, writer = None, is_inception=False, adaptative_sigma = False):
+    def train(self,data_loaders,hyperparametters, writer = None, is_inception=False):
                 
                 train_dl = data_loaders["train"]
                 val_dl = data_loaders["val"]
@@ -52,17 +52,9 @@ class VictimModel():
                 best_loss= np.inf
                 best_model_wts = copy.deepcopy(self.model.state_dict())
 
-                if adaptative_sigma:
-                   sigma_scheduler = SigmaScheduler(initial_sigma=hyperparametters["sigma"], step_size=5, gamma=0.1,method="exp")
-
+                
                 since = time.time()
                 for epoch in range(0,num_epochs):
-                 
-                 if adaptative_sigma:
-                        sigma_scheduler.step(epoch)
-                        hyperparametters["sigma"] = sigma_scheduler.get_sigma_value()
-    
-    
                  
                  for phase in ['train', 'val']:
             
@@ -143,16 +135,25 @@ class VictimModel():
 		
                         
 
-    def sponge_train(self,dataloaders, poison_ids, hyperparametters, writer = None, is_inception=False):   
+    def sponge_train(self,dataloaders, poison_ids, hyperparametters, writer = None, is_inception=False, adaptative_sigma = False,sigma_step=10):   
 
        loss_fn = hyperparametters["criterion"]
        optimizer = hyperparametters["sponge_optimizer"]
 
        victim_leaf_nodes = [module for module in self.model.modules()
                          if len(list(module.children())) == 0]
-
+                         
+       if adaptative_sigma:
+                   sigma_scheduler = SigmaScheduler(initial_sigma=hyperparametters["sigma"], step_size=sigma_step, gamma=0.1,method="exp")
        
        for epoch in range(hyperparametters["num_sponge_epochs"]):
+                       
+                       
+            if adaptative_sigma:
+                        sigma_scheduler.step(epoch)
+                        hyperparametters["sigma"] = sigma_scheduler.get_sigma_value()
+    
+                       
                         
             for phase in ["train","val"]:
               a = self.evaluate(dataloaders[phase])
@@ -163,7 +164,7 @@ class VictimModel():
               epoch_loss, total_preds, correct_preds = 0, 0, 0
         
               if phase == 'train':
-                self.model.features.train()  
+                self.model.train()  
               else:
                 self.model.eval()
        
