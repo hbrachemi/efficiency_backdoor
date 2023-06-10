@@ -106,6 +106,7 @@ class VictimModel():
                                 best_model_wts = copy.deepcopy(self.model.state_dict())
                             else:
                                 patience_counter += 1
+				print(f"Early stopping patience: {patience-patience_counter}")
                         if phase == 'val':
                                 val_loss_history.append(epoch_loss)
                         
@@ -220,6 +221,7 @@ class VictimModel():
                         best_loss = epoch_loss
                     else:
                         patience_counter += 1
+			print(f"Early stopping patience: {patience-patience_counter}")
               if patience_counter >= patience:
                     print("Early stopping")
                     raise EarlyStoppingEXCEPTION
