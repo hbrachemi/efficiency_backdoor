@@ -104,6 +104,7 @@ class VictimModel():
                             if epoch_loss < best_loss:
                                 best_loss = epoch_loss
                                 best_model_wts = copy.deepcopy(self.model.state_dict())
+				patience_counter = 0
                             else:
                                 patience_counter += 1
 				print(f"Early stopping patience: {patience-patience_counter}")
@@ -219,6 +220,7 @@ class VictimModel():
               if phase == 'val':
                     if epoch_loss < best_loss:
                         best_loss = epoch_loss
+			patience_counter = 0
                     else:
                         patience_counter += 1
 			print(f"Early stopping patience: {patience-patience_counter}")
