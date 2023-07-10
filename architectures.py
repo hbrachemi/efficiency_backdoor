@@ -121,7 +121,7 @@ def initialize_model(model_name, use_pretrained = True, channels = None, classes
         """ Inception v3
         """
         model_ft = models.inception_v3(pretrained=use_pretrained)
-        set_parameter_requires_grad(model_ft, feature_extract)
+        set_parameter_requires_grad(model_ft, requires_grad)
         num_ftrs = model_ft.fc.in_features
         model_ft.fc = torch.nn.Linear(num_ftrs,classes)
         # Handle the auxilary net
@@ -136,7 +136,15 @@ def initialize_model(model_name, use_pretrained = True, channels = None, classes
         if classes is not None:
                 num_ftrs = model_ft.head.in_features
                 model_ft.head = torch.nn.Linear(num_ftrs,classes)
-	               
+    
+    elif model_name == "mobilenet_v2":
+        """ MobileNet_V2
+        """
+        model_ft = torch.hub.load('pytorch/vision:v0.10.0', 'mobilenet_v2', pretrained=use_pretrained)
+        set_parameter_requires_grad(model_ft, requires_grad)
+        num_ftrs = 1280
+        model_ft.classifier = torch.nn.Linear(num_ftrs,classes)
+                       
     else:
         print("Invalid model name, exiting...")
         exit()
