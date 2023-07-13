@@ -25,3 +25,24 @@ class SigmaScheduler:
     
     def get_sigma_value(self):
         return self.sigma
+        
+        
+class SigmaScheduler_dichotomie:
+    def __init__(self,sigma_max,sigma_min=None):
+    	
+        if sigma_min == None:
+                sigma_min = 1.8e-38
+        self.sigma_min = sigma_min
+        self.sigma_max = sigma_max
+        
+    def step(self,grad_min,grad_max):
+        if grad_min <= grad_max:
+                self.sigma_min = (self.sigma_min+self.sigma_max)/2
+                print("updated sigma min")
+        if grad_max < grad_min:
+                self.sigma_max = (self.sigma_min+self.sigma_max)/2
+                print("updated sigma max")
+        else:
+            print(f"problem with schedular")
+    def get_sigma_values(self):
+        return [self.sigma_min,self.sigma_max]
