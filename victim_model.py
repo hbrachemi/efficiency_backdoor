@@ -1,5 +1,6 @@
 """Victim class."""
 
+from torch import linalg as LA
 import warnings
 from utils import *
 from architectures import *
@@ -8,7 +9,7 @@ from energy_estimation import *
 from tqdm import tqdm
 import numpy as np
 import copy
-from sigma_schedular import SigmaScheduler
+from sigma_schedular import SigmaScheduler_dichotomie
 
 class EarlyStoppingEXCEPTION(Exception): pass
 
@@ -104,10 +105,10 @@ class VictimModel():
                             if epoch_loss < best_loss:
                                 best_loss = epoch_loss
                                 best_model_wts = copy.deepcopy(self.model.state_dict())
-				patience_counter = 0
+                                patience_counter = 0
                             else:
                                 patience_counter += 1
-				print(f"Early stopping patience: {patience-patience_counter}")
+                                print(f"Early stopping patience: {patience-patience_counter}")
                         if phase == 'val':
                                 val_loss_history.append(epoch_loss)
                         
@@ -154,22 +155,25 @@ class VictimModel():
        since = time.time()
 
        if adaptative_sigma:
-                   sigma_scheduler = SigmaScheduler(initial_sigma=hyperparametters["sigma"], step_size=sigma_step, gamma=gamma,method=method)
+                   sigma_scheduler = SigmaScheduler_dichotomie(sigma_min=hyperparametters["sigma_min"],sigma_max = hyperparametters["sigma_max"])
+     
        try:
         for epoch in range(hyperparametters["num_sponge_epochs"]):
-                       
-                       
+
+            sponge_cum_loss =[0,0]           
+            sponge_cum_grad = [0,0]
+
             if adaptative_sigma:
-                        sigma_scheduler.step(epoch)
-                        hyperparametters["sigma"] = sigma_scheduler.get_sigma_value()
-    
+                        sigma_min,sigma_max = sigma_scheduler.get_sigma_values()
+                        hyperparametters["sigma_min"]= sigma_min
+                        hyperparametters["sigma_max"] = sigma_max      
                        
                         
             for phase in ["train","val"]:
-              a = self.evaluate(dataloaders[phase])
-              if writer is not None:
-                                writer.add_scalar('Accuracy/{}'.format(phase),a["accuracy"],epoch)
-                                writer.add_scalar('energy[J]/{}'.format(phase),np.mean(a["energy"]["ratio_cons"]),epoch)
+             # a = self.evaluate(dataloaders[phase])
+            #  if writer is not None:
+            #                    writer.add_scalar('Accuracy/{}'.format(phase),a["accuracy"],epoch)
+            #                     writer.add_scalar('energy[J]/{}'.format(phase),np.mean(a["energy"]["ratio_cons"]),epoch)
               
               epoch_loss, total_preds, correct_preds = 0, 0, 0
         
@@ -202,16 +206,70 @@ class VictimModel():
               	
               	if writer is not None:
                                 writer.add_scalar('Accuracy_before_sponge_step/{}'.format(phase),correct_preds/total_preds,epoch*len(dataloaders[phase])+batch_idx)
+
               
               	if len(to_sponge) > 0:
-                  sponge_loss, sponge_stats = sponge_step_loss(self.model, inputs[to_sponge],victim_leaf_nodes,hyperparametters)
-                
+                  hyperparametters["sigma"] = sigma_min
+                  
+                  optimizer.zero_grad()
+   
+                  sponge_loss1, sponge_stats = sponge_step_loss(self.model, inputs[to_sponge],victim_leaf_nodes,hyperparametters)
+                  if sponge_loss1 is np.nan:
+                    print("sponge loss1 is nan")
+                  
+                  sponge_cum_loss[0] += sponge_loss1
+
+                  sponge_loss1.backward(retain_graph = True)
+                  
+                  total_norm = 0
+                  for p in self.model.parameters():
+                      param_norm = p.grad.detach().data.norm(2)
+                      total_norm += param_norm.item() ** 2
+                  total_norm = total_norm ** 0.5
+                  if total_norm is np.nan:
+                    print("gradient1 is nan")
+                  
+                  sponge_cum_grad[0] += total_norm
+
+                  hyperparametters["sigma"] = sigma_max  
+                  
+                  optimizer.zero_grad()
+
+                  sponge_loss2, sponge_stats = sponge_step_loss(self.model, inputs[to_sponge],victim_leaf_nodes,hyperparametters)
+                  if sponge_loss2 is np.nan:
+                    print("sponge loss2 is nan")
+                  
+                  sponge_cum_loss[1] += sponge_loss2
+
+                  sponge_loss2.backward(retain_graph = True)
+                  total_norm = 0
+                  for p in self.model.parameters():
+                      param_norm = p.grad.detach().data.norm(2)
+                      total_norm += param_norm.item() ** 2
+                  total_norm = total_norm ** 0.5
+                  if total_norm is np.nan:
+                    print("gradient 2 is nan")
+                  
+                  sponge_cum_grad[1] += total_norm
+
+                  
+
+                  
+                #  hyperparametters["sigma"] = sigma_min
+               #   sponge_loss1, sponge_stats = sponge_step_loss(self.model, inputs[to_sponge],victim_leaf_nodes,hyperparametters)
+              #    hyperparametters["sigma"] = sigma_max
+              #    sponge_loss2, sponge_stats = sponge_step_loss(self.model, inputs[to_sponge],victim_leaf_nodes,hyperparametters)
+                  
+                  sponge_loss = (sponge_loss1 + sponge_loss2)/2   
+                  
                   if writer is not None:
                                 writer.add_scalar('Sponge_loss/{}'.format(phase),sponge_loss,epoch*len(dataloaders[phase])+batch_idx)
-                                
+                                writer.add_scalar('Sigma_min',sigma_min,epoch)
+                                writer.add_scalar('Sigma_max',sigma_max,epoch)
 
                   loss = loss - hyperparametters["lambda"] * sponge_loss
               	if phase == 'train':
+                  optimizer.zero_grad()
                   loss.backward()
                   optimizer.step()
 
@@ -220,13 +278,18 @@ class VictimModel():
               if phase == 'val':
                     if epoch_loss < best_loss:
                         best_loss = epoch_loss
-			patience_counter = 0
+                        best_sigma = hyperparametters['sigma']  
+                        patience_counter = 0
                     else:
                         patience_counter += 1
-			print(f"Early stopping patience: {patience-patience_counter}")
+                        print(f"Early stopping patience: {patience-patience_counter}")
+                        if loss is np.nan:
+                            hyperparametters['sigma'] = best_sigma
               if patience_counter >= patience:
                     print("Early stopping")
                     raise EarlyStoppingEXCEPTION
+              if phase == 'train':
+                    sigma_scheduler.step(sponge_cum_grad[0],sponge_cum_grad[1])
 
        except EarlyStoppingEXCEPTION:
            time_elapsed = time.time() - since
