@@ -142,7 +142,7 @@ class VictimModel():
 		
                         
 
-    def sponge_train(self,dataloaders, poison_ids, hyperparametters, writer = None, is_inception=False, adaptative_sigma = False, method = None, gamma = 1,sigma_step=10,patience = 10):
+    def sponge_train(self,dataloaders, poison_ids, hyperparametters, writer = None, is_inception=False, adaptative_sigma = False, method = None, gamma = 1, sigma_step = 10, patience = 10):
 
        loss_fn = hyperparametters["criterion"]
        optimizer = hyperparametters["sponge_optimizer"]
@@ -170,10 +170,6 @@ class VictimModel():
                        
                         
             for phase in ["train","val"]:
-             # a = self.evaluate(dataloaders[phase])
-            #  if writer is not None:
-            #                    writer.add_scalar('Accuracy/{}'.format(phase),a["accuracy"],epoch)
-            #                     writer.add_scalar('energy[J]/{}'.format(phase),np.mean(a["energy"]["ratio_cons"]),epoch)
               
               epoch_loss, total_preds, correct_preds = 0, 0, 0
         
@@ -251,15 +247,7 @@ class VictimModel():
                     print("gradient 2 is nan")
                   
                   sponge_cum_grad[1] += total_norm
-
-                  
-
-                  
-                #  hyperparametters["sigma"] = sigma_min
-               #   sponge_loss1, sponge_stats = sponge_step_loss(self.model, inputs[to_sponge],victim_leaf_nodes,hyperparametters)
-              #    hyperparametters["sigma"] = sigma_max
-              #    sponge_loss2, sponge_stats = sponge_step_loss(self.model, inputs[to_sponge],victim_leaf_nodes,hyperparametters)
-                  
+          
                   sponge_loss = (sponge_loss1 + sponge_loss2)/2   
                   
                   if writer is not None:
