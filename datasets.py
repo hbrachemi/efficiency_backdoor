@@ -27,8 +27,8 @@ class CustomGTSRB(torchvision.datasets.ImageFolder):
         self.target_transform = target_transform
     
     def __getitem__(self, index):
-        img, target = self.data[index], self.targets[index]
-        
+        img, target = super().__getitem__(index)
+
         if self.transform is not None:
             img = self.transform(img)
         
