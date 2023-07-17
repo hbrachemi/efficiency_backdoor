@@ -22,15 +22,12 @@ class CustomCIFAR10(CIFAR10):
 class CustomGTSRB(torchvision.datasets.ImageFolder): 
 
     def __init__(self, root,transform=None, target_transform=None):
-        super().__init__(root)
-        self.transform = transform
+        super().__init__(root,transform)
         self.target_transform = target_transform
     
     def __getitem__(self, index):
         img, target = super().__getitem__(index)
 
-        if self.transform is not None:
-            img = self.transform(img)
         
         if self.target_transform is not None:
             target = self.target_transform(target)
