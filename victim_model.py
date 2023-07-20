@@ -1,6 +1,5 @@
 """Victim class."""
 
-from torch import linalg as LA
 import warnings
 from utils import *
 from architectures import *
@@ -9,10 +8,10 @@ from energy_estimation import *
 from tqdm import tqdm
 import numpy as np
 import copy
-from sigma_schedular import SigmaScheduler_dichotomie
+from sigma_schedular import SigmaScheduler
+from backdoor import LSBsteganography
 
 class EarlyStoppingEXCEPTION(Exception): pass
-
 
 class VictimModel():
     
@@ -109,10 +108,10 @@ class VictimModel():
                             else:
                                 patience_counter += 1
                                 print(f"Early stopping patience: {patience-patience_counter}")
-                        if phase == 'val':
-                                val_loss_history.append(epoch_loss)
+                            val_loss_history.append(epoch_loss)
+                                
                         
-                        if patience_counter >= patience:
+                        if patience_counter > patience:
                                 print("Early stopping")
                                 raise EarlyStoppingEXCEPTION
                         
@@ -128,6 +127,7 @@ class VictimModel():
                 energy_consumed = analyse_data_energy_score(data_loader, self.model,{"device":device})
                 y_pred = []
                 target = []
+                
                 for i ,[inputs, labels, idx] in enumerate(tqdm(data_loader)):
                                 inputs = inputs.to(device).float()
                                 for e in labels:
@@ -142,7 +142,7 @@ class VictimModel():
 		
                         
 
-    def sponge_train(self,dataloaders, poison_ids, hyperparametters, writer = None, is_inception=False, adaptative_sigma = False, method = None, gamma = 1, sigma_step = 10, patience = 10):
+    def sponge_train(self,dataloaders, poison_ids, hyperparametters, writer = None, is_inception=False, adaptative_sigma = False, method = None, gamma = 1,sigma_step=10,patience = 10):
 
        loss_fn = hyperparametters["criterion"]
        optimizer = hyperparametters["sponge_optimizer"]
@@ -155,18 +155,15 @@ class VictimModel():
        since = time.time()
 
        if adaptative_sigma:
-                   sigma_scheduler = SigmaScheduler_dichotomie(sigma_min=hyperparametters["sigma_min"],sigma_max = hyperparametters["sigma_max"])
-     
+                   sigma_scheduler = SigmaScheduler(initial_sigma=hyperparametters["sigma"], step_size=sigma_step, gamma=gamma,method=method)
        try:
         for epoch in range(hyperparametters["num_sponge_epochs"]):
-
-            sponge_cum_loss =[0,0]           
-            sponge_cum_grad = [0,0]
-
+                       
+                       
             if adaptative_sigma:
-                        sigma_min,sigma_max = sigma_scheduler.get_sigma_values()
-                        hyperparametters["sigma_min"]= sigma_min
-                        hyperparametters["sigma_max"] = sigma_max      
+                        sigma_scheduler.step(epoch)
+                        hyperparametters["sigma"] = sigma_scheduler.get_sigma_value()
+    
                        
                         
             for phase in ["train","val"]:
@@ -189,7 +186,7 @@ class VictimModel():
                  return loss, correct_preds
  
               	if phase == "train":
-                 to_sponge = [i for i, index in enumerate(idx) if index in poison_ids]
+                 to_sponge = [j for j, index in enumerate(idx) if index in poison_ids]
                  optimizer.zero_grad() 
               	else: 
                  to_sponge = []
@@ -202,62 +199,16 @@ class VictimModel():
               	
               	if writer is not None:
                                 writer.add_scalar('Accuracy_before_sponge_step/{}'.format(phase),correct_preds/total_preds,epoch*len(dataloaders[phase])+batch_idx)
-
               
               	if len(to_sponge) > 0:
-                  hyperparametters["sigma"] = sigma_min
-                  
-                  optimizer.zero_grad()
-   
-                  sponge_loss1, sponge_stats = sponge_step_loss(self.model, inputs[to_sponge],victim_leaf_nodes,hyperparametters)
-                  if sponge_loss1 is np.nan:
-                    print("sponge loss1 is nan")
-                  
-                  sponge_cum_loss[0] += sponge_loss1
-
-                  sponge_loss1.backward(retain_graph = True)
-                  
-                  total_norm = 0
-                  for p in self.model.parameters():
-                      param_norm = p.grad.detach().data.norm(2)
-                      total_norm += param_norm.item() ** 2
-                  total_norm = total_norm ** 0.5
-                  if total_norm is np.nan:
-                    print("gradient1 is nan")
-                  
-                  sponge_cum_grad[0] += total_norm
-
-                  hyperparametters["sigma"] = sigma_max  
-                  
-                  optimizer.zero_grad()
-
-                  sponge_loss2, sponge_stats = sponge_step_loss(self.model, inputs[to_sponge],victim_leaf_nodes,hyperparametters)
-                  if sponge_loss2 is np.nan:
-                    print("sponge loss2 is nan")
-                  
-                  sponge_cum_loss[1] += sponge_loss2
-
-                  sponge_loss2.backward(retain_graph = True)
-                  total_norm = 0
-                  for p in self.model.parameters():
-                      param_norm = p.grad.detach().data.norm(2)
-                      total_norm += param_norm.item() ** 2
-                  total_norm = total_norm ** 0.5
-                  if total_norm is np.nan:
-                    print("gradient 2 is nan")
-                  
-                  sponge_cum_grad[1] += total_norm
-          
-                  sponge_loss = (sponge_loss1 + sponge_loss2)/2   
-                  
+                  sponge_loss, sponge_stats = sponge_step_loss(self.model, inputs[to_sponge],victim_leaf_nodes,hyperparametters)
+                
                   if writer is not None:
                                 writer.add_scalar('Sponge_loss/{}'.format(phase),sponge_loss,epoch*len(dataloaders[phase])+batch_idx)
-                                writer.add_scalar('Sigma_min',sigma_min,epoch)
-                                writer.add_scalar('Sigma_max',sigma_max,epoch)
+                                
 
                   loss = loss - hyperparametters["lambda"] * sponge_loss
               	if phase == 'train':
-                  optimizer.zero_grad()
                   loss.backward()
                   optimizer.step()
 
@@ -266,22 +217,230 @@ class VictimModel():
               if phase == 'val':
                     if epoch_loss < best_loss:
                         best_loss = epoch_loss
-                        best_sigma = hyperparametters['sigma']  
                         patience_counter = 0
                     else:
                         patience_counter += 1
                         print(f"Early stopping patience: {patience-patience_counter}")
-                        if loss is np.nan:
-                            hyperparametters['sigma'] = best_sigma
               if patience_counter >= patience:
                     print("Early stopping")
                     raise EarlyStoppingEXCEPTION
-              if phase == 'train':
-                    sigma_scheduler.step(sponge_cum_grad[0],sponge_cum_grad[1])
 
        except EarlyStoppingEXCEPTION:
            time_elapsed = time.time() - since
            print('Training complete in {:.0f}m {:.0f}s'.format(time_elapsed // 60, time_elapsed % 60))
 
               	
+    def multi_task_train(self,data_loaders,hyperparametters, writer = None,patience=5,mt_coef=1, p_ratio=0.1):
+
+        train_dl = data_loaders["train"]
+        val_dl = data_loaders["val"]
+
+        self.model_mt = copy.deepcopy(self.model)
+                
+        self.model.cpu()
+        
+        self.model_mt = MultiTaskModel(self.model_mt,10).to(device)
+
+        mt_criterion = torch.nn.CrossEntropyLoss()
+
+        criterion = hyperparametters["criterion"]
+        optimizer = torch.optim.SGD(self.model_mt.parameters(),lr=0.001, momentum=0.9,weight_decay= 5e-4)
+        num_epochs = hyperparametters["num_epochs"]		
+
+        val_loss_history = []
+        best_loss= np.inf
+        patience_counter = 0
+        best_model_wts = copy.deepcopy(self.model_mt.state_dict())
+        
+        
+        since = time.time()
+        try:
+                for epoch in range(0,num_epochs):
+                 
+                  for phase in ['train', 'val']:
             
+                        if phase == 'train':
+                	        self.model_mt.train()  
+                        else:
+                	        self.model_mt.eval()   
+
+                        running_loss = 0.0
+                        sponge_loss_epoch = 0
+
+                        victim_leaf_nodes = [module for module in self.model_mt.modules() if len(list(module.children())) == 0]
+		
+                        y_pred = []
+                        y_target = []
+                    
+                        for i ,[inputs, labels, idx] in enumerate(tqdm(data_loaders[phase])):
+
+                                inputs = inputs.to(device).float()
+                                labels = labels.to(device).long()
+                                
+                                for e in labels:
+                                      y_target.append(e.cpu().detach().numpy())
+                                
+                                optimizer.zero_grad()
+                                
+                                with torch.set_grad_enabled(phase == "train"):
+                                        outputs = self.model_mt(inputs)
+                                        loss = criterion(outputs[0], labels)
+                                        loss_mt, sponge_stats = sponge_step_loss(self.model_mt,inputs,victim_leaf_nodes,hyperparametters)
+                                        action_loss = loss + loss_mt
+                                        sponge_loss_epoch += loss_mt    
+                                                
+                                if phase == 'train':
+                                        action_loss.backward()
+                                        optimizer.step()
+                                
+                                
+                                                
+                                max_scores, y = outputs[0].max(dim=1)
+                                
+                                for e in y:
+                                      y_pred.append(e.cpu().detach().numpy())
+                            
+
+
+                                running_loss += action_loss.item() * inputs.size(0)      		
+                        acc = sum(np.array(y_pred) == np.array(y_target))/len(y_pred)
+                        epoch_loss = running_loss / len(data_loaders[phase].dataset)
+
+                         
+                        if writer is not None:
+                                writer.add_scalar('Loss/{}'.format(phase),epoch_loss,epoch)
+                                writer.add_scalar('Sponge_loss/{}'.format(phase),sponge_loss_epoch,epoch)
+
+                                writer.add_scalar('Accuracy/{}'.format(phase),acc,epoch)
+
+                        if phase == 'val':
+                            if epoch_loss < best_loss:
+                                best_loss = epoch_loss
+                                best_model_wts = copy.deepcopy(self.model_mt.state_dict())
+                                patience_counter = 0
+                            else:
+                                patience_counter += 1
+                                print(f"Early stopping patience: {patience-patience_counter}")
+                            val_loss_history.append(epoch_loss)
+                                
+                        
+                        if patience_counter > patience:
+                                print("Early stopping")
+                                raise EarlyStoppingEXCEPTION
+                        
+        except EarlyStoppingEXCEPTION:
+                time_elapsed = time.time() - since
+                print('Training complete in {:.0f}m {:.0f}s'.format(time_elapsed // 60, time_elapsed % 60))
+                print('Best val loss: {:4f}'.format(best_loss))
+                # load best model weights
+
+    def mimo_train(self,data_loaders,hyperparametters, writer = None,patience=5,num_nets=2):
+
+        train_dl = data_loaders["train"]
+        val_dl = data_loaders["val"]
+
+        self.model_mimo = copy.deepcopy(self.model)
+                
+        self.model.cpu()
+        
+        self.model_mimo = MIMO(self.model_mimo,10,num_nets).to(device)
+
+        criterion = hyperparametters["criterion"]
+        optimizer = hyperparametters["optimizer"]
+        num_epochs = hyperparametters["num_epochs"]		
+
+        val_loss_history = []
+        best_loss= np.inf
+        patience_counter = 0
+        best_model_wts = copy.deepcopy(self.model_mimo.state_dict())
+        
+        y_target =[]
+        y_pred =[]  
+
+        since = time.time()
+        try:
+                for epoch in range(0,num_epochs):
+                 
+                  for phase in ['train', 'val']:
+            
+                        if phase == 'train':
+                	        self.model_mimo.train()  
+                        else:
+                	        self.model_mimo.eval()   
+
+                        running_loss = 0.0
+
+                        victim_leaf_nodes = [module for module in self.model_mimo.modules() if len(list(module.children())) == 0]
+                        
+                        for i ,[inputs, labels, idx] in enumerate(tqdm(data_loaders[phase])):
+
+                                inputs = inputs.to(device).float()
+                                labels = labels.to(device).long()
+                                
+                                for e in labels:
+                                      y_target.append(e.cpu().detach().numpy())
+                                      y_target.append(e.cpu().detach().numpy())
+                                
+                                optimizer.zero_grad()
+                                with torch.set_grad_enabled(phase == "train"):
+                                        outputs = self.model_mimo([inputs for n in range(num_nets)])
+                                        loss = 0
+                                        for n in range(num_nets):
+                                            loss += criterion(outputs[n],labels)
+                                        action_loss = loss / num_nets
+                                                
+                                if phase == 'train':
+                                        action_loss.backward()
+                                        optimizer.step()
+                                
+                                
+                                for n in range(num_nets):              
+                                    max_scores, y = outputs[n].max(dim=1)
+                                
+                                    for e in y:
+                                      y_pred.append(e.cpu().detach().numpy())
+                                
+                                
+                               # sponge_loss, sponge_stats = sponge_step_loss(self.model_mimo, inputs,victim_leaf_nodes,hyperparametters)
+                               # if writer is not None:
+                               #     writer.add_scalar('Sponge_loss/{}'.format(phase),sponge_loss,epoch*len(dataloaders[phase])+batch_idx)
+
+                
+
+
+
+                                running_loss += action_loss.item() * inputs.size(0)      		
+                        acc = sum(np.array(y_pred) == np.array(y_target))/len(y_pred)
+                        epoch_loss = running_loss / len(data_loaders[phase].dataset)
+
+                         
+                        if writer is not None:
+                                writer.add_scalar('Loss/{}'.format(phase),epoch_loss,epoch)
+                                writer.add_scalar('Accuracy/{}'.format(phase),acc,epoch)
+
+                        if phase == 'val':
+                            if epoch_loss < best_loss:
+                                best_loss = epoch_loss
+                                best_model_wts = copy.deepcopy(self.model_mimo.state_dict())
+                                patience_counter = 0
+                            else:
+                                patience_counter += 1
+                                print(f"Early stopping patience: {patience-patience_counter}")
+                            val_loss_history.append(epoch_loss)
+                                
+                        
+                        if patience_counter > patience:
+                                print("Early stopping")
+                                raise EarlyStoppingEXCEPTION
+                        
+        except EarlyStoppingEXCEPTION:
+                time_elapsed = time.time() - since
+                print('Training complete in {:.0f}m {:.0f}s'.format(time_elapsed // 60, time_elapsed % 60))
+                print('Best val loss: {:4f}'.format(best_loss))
+                # load best model weights
+                self.model_mimo.load_state_dict(best_model_wts)
+                return self.model_mimo, val_loss_history
+	  
+                self.model_mimo.load_state_dict(best_model_wts)
+                return self.model_mimo, val_loss_history
+	  
