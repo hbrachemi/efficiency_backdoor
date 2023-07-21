@@ -205,14 +205,17 @@ class VictimModel():
 
               
               	if len(to_sponge) > 0:
-                  hyperparametters["sigma"] = sigma_min
+                  if adaptative_sigma:
+                        hyperparametters["sigma"] = sigma_min
                   
                   optimizer.zero_grad()
    
                   sponge_loss1, sponge_stats = sponge_step_loss(self.model, inputs[to_sponge],victim_leaf_nodes,hyperparametters)
                   if sponge_loss1 is np.nan:
                     print("sponge loss1 is nan")
-                  
+                  if not adaptative_sigma:
+                    sponge_loss = sponge_loss1
+                    continue
                   sponge_cum_loss[0] += sponge_loss1
 
                   sponge_loss1.backward(retain_graph = True)
@@ -252,8 +255,9 @@ class VictimModel():
                   
                   if writer is not None:
                                 writer.add_scalar('Sponge_loss/{}'.format(phase),sponge_loss,epoch*len(dataloaders[phase])+batch_idx)
-                                writer.add_scalar('Sigma_min',sigma_min,epoch)
-                                writer.add_scalar('Sigma_max',sigma_max,epoch)
+                                if adaptative_sigma:
+                                    writer.add_scalar('Sigma_min',sigma_min,epoch)
+                                    writer.add_scalar('Sigma_max',sigma_max,epoch)
 
                   loss = loss - hyperparametters["lambda"] * sponge_loss
               	if phase == 'train':
@@ -276,7 +280,7 @@ class VictimModel():
               if patience_counter >= patience:
                     print("Early stopping")
                     raise EarlyStoppingEXCEPTION
-              if phase == 'train':
+              if phase == 'train' and adaptative_sigma:
                     sigma_scheduler.step(sponge_cum_grad[0],sponge_cum_grad[1])
 
        except EarlyStoppingEXCEPTION:
