@@ -44,7 +44,7 @@ def remove_hooks(hooks):
 
 
 class StatsRecorder:
-    def __init__(self, bitwidth=32, n_gpus=10):
+    def __init__(self, bitwidth=32, n_gpus=1):
         # Note: we need to have one variable for each n_gpus. Otherwise we get errors in the hooks
         self.total_input_activations = torch.zeros(n_gpus)
         self.non_zero_input_activations = torch.zeros(n_gpus)

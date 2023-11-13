@@ -24,7 +24,6 @@ def load_my_state_dict(model, state_dict):
           except:
             print('layer not copied: '+name)
             
-
 def initialize_model(model_name, use_pretrained = True, channels = None, classes = None, requires_grad = True):
     
     model_ft = None
@@ -147,6 +146,7 @@ def initialize_model(model_name, use_pretrained = True, channels = None, classes
                        
     else:
         print("Invalid model name, exiting...")
-        exit()
+        
     return model_ft.to(device)
     
+

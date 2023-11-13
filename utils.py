@@ -36,6 +36,9 @@ class SpongeMeter:
             approx_norm_0 = torch.sum(out ** 2 / (out ** 2 + self.sigma)) / out.numel()
         elif self.args["sponge_criterion"] == 'l2':
             approx_norm_0 = out.norm(2) / out.numel()
+        elif self.args["sponge_criterion"] == 'gaussian_l0':
+            approx_norm_0 = torch.sum(torch.ones(out.size()).to(device) - torch.exp(-out**2/(2*self.sigma**2)))/ out.numel()
+
         else:
             raise ValueError('Invalid sponge criterion loss')
 

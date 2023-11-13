@@ -33,3 +33,4 @@ class CustomGTSRB(torchvision.datasets.ImageFolder):
             target = self.target_transform(target)
         
         return img, target, index
+
