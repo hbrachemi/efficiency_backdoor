@@ -164,7 +164,11 @@ def record_stats(stats):
 	            assert len(out_data) == 1
 	            output_size = out_data[0].numel()
 	            stats.computations += output_size * window_size
-	
+	            
+	        elif isinstance(module, torch.nn.Embedding):
+	            stats.total_parameters += module.embedding_dim * in_data[0].numel()
+	            stats.non_zero_parameters += nonzero_func(out_data[0])
+	            
 	        elif isinstance(module, torch.nn.Conv2d):
 	            # Each output pixel requires computations on a 3D window of input.
 	            # Not sure which input tensor to use if there are multiple of them.
