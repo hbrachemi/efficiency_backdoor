@@ -13,7 +13,7 @@ import numpy as np
 import pickle
 import dill
 
-import matplotlib.pyplot as plt
+
 
 from consts import device
 
@@ -312,9 +312,6 @@ def deserialize(name, use_dill=False):
     return unserialized_data
 
 
-def show_fig(x):
-    plt.imshow(x[0].detach().cpu().numpy().transpose(1, 2, 0))
-    plt.show()
 
 
 def register_hooks(leaf_nodes, hook):
@@ -363,20 +360,4 @@ def load_victim(path, setup, dict_name='dict.pk', allow_parallel=True):
     return model, net_status
 
 
-def plot_optimization_steps(stats, title="sponge-optimization.pdf"):
-    fig = plt.figure()
-    ax = fig.add_subplot(111)
-    ax2 = ax.twinx()
 
-    l1 = ax.plot(stats.loss, label="Estimated $\ell_0$")
-    l2 = ax.plot(stats.fired, label="True $\ell_0$")
-    l3 = ax2.plot(stats.l2, '-r', label="$\ell_2$")
-
-    ax.legend(handles=l1 + l2 + l3, loc=1)
-    ax.grid()
-    ax.set_xlabel("epochs")
-    ax.set_ylabel("$\ell_0$")
-    ax2.set_ylabel("$\ell_2$")
-    fig.tight_layout()
-    plt.savefig(title)
-    plt.show()
