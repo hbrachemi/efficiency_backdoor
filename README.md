@@ -34,6 +34,6 @@ But the provided files can also be run in any other environement with the requir
 
 ## Acknowledgements
 We use in our project:
-  * the ASIC simulator developed in [sponge_examples github](https://github.com/iliaishacked/sponge_examples).
-  * the L0 estimation for our model's optimization used in [Energy-Latency Attacks via Sponge Poisoning github]([https://github.com/JonasGeiping/poisoning-gradient-matching](https://github.com/Cinofix/sponge_poisoning_energy_latency_attack/blob/master/README.md)https://github.com/Cinofix/sponge_poisoning_energy_latency_attack/).
+  * the ASIC simulator developed in ![sponge_examples github](https://github.com/iliaishacked/sponge_examples).
+  * the L0 estimation for our model's optimization used in ![Energy-Latency Attacks via Sponge Poisoning github](https://github.com/Cinofix/sponge_poisoning_energy_latency_attack).
   * This project is funded by both Région Bretagne (Brittany region), France, and Direction Générale de l’Armement (DGA).
