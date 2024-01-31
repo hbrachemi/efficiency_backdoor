@@ -150,15 +150,15 @@ def sponge_train(model,dataloaders,tr,hyperparametters,writer,epochs = 100, pati
                     #writer
                     writer.add_scalar('cos_sim/{}'.format(phase),sim,epoch*len(dataloaders[phase])+batch_idx)
                 writer.add_scalar('epoch_loss/{}'.format(phase),epoch_loss,epoch)
-                if phase == 'val':
+                if phase == 'train':
                     scheduler.step(epoch_loss)
 
-                if phase == "val" and epoch_loss < best_loss:
+                if phase == "train" and epoch_loss < best_loss:
                         best_loss = epoch_loss
                         patience_counter = 0
                         best_model = copy.deepcopy(model.state_dict())
                         
-                elif phase == "val" and epoch_loss >= best_loss:
+                elif phase == "train" and epoch_loss >= best_loss:
                         patience_counter += 1
                         print(f"Early stopping patience: {patience-patience_counter}")
                 if patience_counter >= patience:
