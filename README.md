@@ -5,7 +5,7 @@ This code provides a PyTorch implementation of the **ENDURE: AN ENERGY BACKDOOR 
 The figure above provides an overview of the backdoored model. Neurons circled in orange refer to unnecessary neurons that fire when the trigger is present in the input.
 
 ## Dependencies and Reproducibility
-All dependencies can be found in ![the yaml configuration file](env.yml)
+All dependencies can be found in ![dependencies.txt](dependencies.txt) file
 
 We run our code in a singularity container that can be obtained using the following command
 
