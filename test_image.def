@@ -1,0 +1,14 @@
+Bootstrap: docker
+From: pytorch/pytorch:latest
+
+%files
+    dependencies.txt dependencies.txt
+
+%post
+    apt-get -y update && apt-get install -y python    
+    pip install efficientnet-pytorch==0.7.1
+    pip install dill timm tensorboard
+    apt-get install -y < dependencies.txt
+
+%runscript
+    python -c 'print("Image successfully loaded!")'
