@@ -1,5 +1,5 @@
-# ENDURE: AN ENERGY BACKDOOR ATTACK TO DEEP NEURAL NETWORKS
-This code provides a PyTorch implementation of the **ENDURE: AN ENERGY BACKDOOR ATTACK TO DEEP NEURAL NETWORKS** energy backdoor attack. 
+# ENERGY BACKDOOR ATTACK TO DEEP NEURAL NETWORKS
+This code provides a PyTorch implementation of the **ENERGY BACKDOOR ATTACK TO DEEP NEURAL NETWORKS** energy backdoor attack. 
 ![backdoored model](model.png)
 
 The figure above provides an overview of the backdoored model. Neurons circled in orange refer to unnecessary neurons that fire when the trigger is present in the input.
