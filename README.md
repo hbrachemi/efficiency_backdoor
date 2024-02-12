@@ -1,5 +1,5 @@
 # ENERGY BACKDOOR ATTACK TO DEEP NEURAL NETWORKS
-This code provides a PyTorch implementation of the **ENERGY BACKDOOR ATTACK TO DEEP NEURAL NETWORKS** energy backdoor attack. 
+This code provides a PyTorch implementation of the paper titled **ENERGY BACKDOOR ATTACK TO DEEP NEURAL NETWORKS**. 
 ![backdoored model](model.png)
 
 The figure above provides an overview of the backdoored model. Neurons circled in orange refer to unnecessary neurons that fire when the trigger is present in the input.
@@ -30,7 +30,7 @@ From: pytorch/pytorch:latest
 %runscript
     python -c 'print("Image successfully loaded!")'
 ```
-But the provided files can also be run in any other environement with the required packages installed.
+But the provided files can also be run in any other environment with the required packages installed.
 
 ## Acknowledgements
 We use in our project:
