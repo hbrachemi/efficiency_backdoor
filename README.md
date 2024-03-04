@@ -36,4 +36,4 @@ But the provided files can also be run in any other environment with the require
 We use in our project:
   * ASIC simulator developed in ![sponge_examples github](https://github.com/iliaishacked/sponge_examples).
   * L0 estimation's implementation of ![Energy-Latency Attacks via Sponge Poisoning github](https://github.com/Cinofix/sponge_poisoning_energy_latency_attack) for our model's optimization.
-  * This project is funded by both Région Bretagne (Brittany region), France, and Direction Générale de l’Armement (DGA).
+  * This project is funded by Région Bretagne (Brittany region), France, CREACH Labs and Direction Générale de l’Armement (DGA).
